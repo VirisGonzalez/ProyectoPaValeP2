@@ -74,3 +74,70 @@ df_report = etl.transform_report(df, '2022-03-26')
 etl.load(df_report, 'xetra-vgv20230310_073013.parquet')
 
 print(df_report)
+
+s3 = boto3.resource('s3')
+bucket_target = s3.Bucket('xetra-vgv')
+prq_obj = bucket_target.Object(key='xetra-vgv20230228_103751.parquet').get().get('Body').read()
+data = BytesIO(prq_obj)
+df_report = pd.read_parquet(data)
+
+df_report
+
+s3 = boto3.resource('s3')
+bucket_target = s3.Bucket('xetra-vgv')
+prq_obj = bucket_target.Object(key='xetra-vgv20230228_103751.parquet').get().get('Body').read()
+data = BytesIO(prq_obj)
+df_report = pd.read_parquet(data)
+
+# Guardar el DataFrame como archivo CSV
+df_report.to_csv('xetra-vgv20230228_103751.csv', index=False)
+
+# Cargar el archivo CSV para verificar que se guardó correctamente
+df_csv = pd.read_csv('xetra-vgv20230228_103751.csv')
+print(df_csv.head())
+
+df = pd.read_csv('xetra-vgv20230228_103751.csv')
+
+
+# Seleccionar las características que se utilizarán para la predicción
+X = df[['opening_price_eur', 'closing_price_eur']].values
+
+# Seleccionar la variable a predecir (EndPrice)
+y = df[['closing_price_eur']].values
+
+# Dividir los datos en conjuntos de entrenamiento y prueba
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=0)
+
+# Normalizar los datos
+sc = MinMaxScaler(feature_range=(0, 1))
+X_train = sc.fit_transform(X_train)
+X_test = sc.transform(X_test)
+
+# Construir el modelo de red neuronal
+model = Sequential()
+model.add(Dense(64, input_shape=(2,), activation='relu'))
+model.add(Dropout(0.5))
+model.add(Dense(32, activation='relu'))
+model.add(Dropout(0.5))
+model.add(Dense(1, activation='linear'))
+
+print(X_train.shape)
+print(X_test.shape)
+
+# Entrenar el modelo de red neuronal
+model.compile(loss='mean_squared_error', optimizer='adam')
+model.fit(X_train, y_train, epochs=100, batch_size=32, validation_data=(X_test, y_test))
+
+# Realizar la predicción con una proyección de una semana
+# Cargar los datos del nuevo día que se quiere predecir
+new_data = pd.read_csv('C:/Users/virid/Desktop/xetra-vgv20230228_103751.csv')
+new_X = new_data[['opening_price_eur', 'closing_price_eur']].values
+new_X = sc.transform(new_X)
+prediction = model.predict(new_X)
+
+# Imprimir la predicción
+print("La predicción para el EndPrice en una semana es:", prediction)
+
+# Guardar el modelo entrenado
+model.save('ruta/al/modelo_entrenado.h5')
+
